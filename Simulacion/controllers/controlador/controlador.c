@@ -3,6 +3,7 @@
 #include <webots/gps.h>
 #include <webots/motor.h>
 #include <webots/robot.h>
+#include <webots/inertial_unit.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,6 +14,8 @@
 #define MAX_PATH_LEN 100
 #define MAX_OPEN_NODES 1000
 #define SPEED 4.0
+#define WAYPOINT_THRESHOLD 0.1
+//Distancia para considerar que se ha alcanzado el punto
 
 typedef struct {
   int x, y;
@@ -153,11 +156,16 @@ int main() {
   //GPS
   WbDeviceTag gps = wb_robot_get_device("gps");
   wb_gps_enable(gps, TIME_STEP);
+  
+  WbDeviceTag imu = wb_robot_get_device("imu");
+  wb_inertial_unit_enable(imu, TIME_STEP);
 
-  //ruta grilla
+  //Variables de estado para la navegación
   int grid[GRID_SIZE][GRID_SIZE] = {0};
-  Point path[100];
+  Point path[MAX_PATH_LEN];
   int path_length = 0;
+  int current_path_index = 0;
+  bool replan = true;
   
   while (wb_robot_step(TIME_STEP) != -1) {
    
@@ -165,31 +173,38 @@ int main() {
    bool ds_detect_near=false;
    bool lidar_detect_near=false;
    
-   left_speed = 1.0;
-   right_speed = 1.0;
+   left_speed = 0.0;
+   right_speed = 0.0;
    
-
+   //Percepción
    double ds_values[2];
    for (i = 0; i < 2; i++){
      ds_values[i] = wb_distance_sensor_get_value(ds[i]);
      printf("Sensor %d: %.2f\n", i, ds_values[i]);
    }
-  if (ds_values[i] < 950.0)
+  if (ds_values[0] < 950.0 || ds_values[1] < 950.0)
      ds_detect_near=true;
         
   
     
     //GPS
-    const double *pose = wb_gps_get_values(gps);
-    float robot_x = pose[0];
-    float robot_y = pose[2]; // Webots usa X-Z como plano horizontal
+    const double *gps_pose = wb_gps_get_values(gps);
+    float robot_x = gps_pose[0];
+    float robot_y = gps_pose[2]; // Webots usa X-Z como plano horizontal
    
+    // Obtener orientación del robot desde la IMU en radianes   
+    const double *imu_rpy = wb_inertial_unit_get_roll_pitch_yaw(imu);
+    double robot_yaw = imu_rpy[2]; //Yaw es el ángulo en el plano horizontal
+    
     
     //lidar
     // (1) Obtener datos del LIDAR y construir mapa de obstáculos
     const float *ranges = wb_lidar_get_range_image(lidar);
     int resolution = wb_lidar_get_horizontal_resolution(lidar);
     double fov = wb_lidar_get_fov(lidar);
+    
+    // Limpiar la grilla antes de volver a mapear (mapeo local)
+    for(int gx=0; gx < GRID_SIZE; ++gx) for(int gy=0; gy < GRID_SIZE; ++gy) grid[gx][gy] = 0;
     
     for (int i = 0; i < resolution; i++) {
       double angle = -fov / 2 + i * (fov / resolution);
@@ -216,38 +231,86 @@ int main() {
       }
       
       //plan path
-     //Planificación (solo una vez o cada cierto tiempo)
-      Point start = {GRID_SIZE / 2, GRID_SIZE / 2};
-      Point goal = {GRID_SIZE - 2, GRID_SIZE - 2};
-      path_length = plan_path(grid, start, goal, path, 100);
-        
-     if(lidar_detect_near || ds_detect_near){
-       left_speed=1.0;
-       right_speed=-1.0;
-     } else if(path_length > 1) {
-       left_speed=SPEED;
-       right_speed=SPEED;
-      }
-    
+      // --- PLANIFICACIÓN ---
+    if (replan) {
+      Point start = {(int)((robot_x + GRID_SIZE * CELL_SIZE / 2) / CELL_SIZE), 
+                     (int)((robot_y + GRID_SIZE * CELL_SIZE / 2) / CELL_SIZE)};
+      Point goal = {GRID_SIZE - 2, GRID_SIZE - 2}; // Objetivo fijo por ahora
       
+      path_length = plan_path(grid, start, goal, path, MAX_PATH_LEN);
+      current_path_index = 0; // Reiniciar el seguimiento de la ruta
+      replan = false; // No replanificar hasta que sea necesario
+      
+      if (path_length > 0) {
+        printf("Ruta encontrada con %d puntos. Iniciando navegación.\n", path_length);
+      } else {
+        printf("No se pudo encontrar una ruta.\n");
+      }
+    }
+        
+    // --- CONTROL ---
+    if (lidar_detect_near || ds_detect_near) {
+      // Evasión de emergencia: Girar
+      printf("Obstáculo cercano! Evasión de emergencia.\n");
+      left_speed = SPEED;
+      right_speed = -SPEED;
+      replan = true; // Forzar replanificación después de la evasión
+    } else if (path_length > 0 && current_path_index < path_length) {
+      // NUEVO: Lógica para seguir el camino (Path Following)
+      
+      // 1. Definir el punto objetivo actual (waypoint)
+      Point current_waypoint_grid = path[current_path_index];
+      double target_x = (current_waypoint_grid.x - GRID_SIZE / 2) * CELL_SIZE;
+      double target_y = (current_waypoint_grid.y - GRID_SIZE / 2) * CELL_SIZE;
+      
+      // 2. Calcular la distancia y el ángulo hacia el waypoint
+      double dx = target_x - robot_x;
+      double dy = target_y - robot_y;
+      double distance_to_target = sqrt(dx * dx + dy * dy);
+      double angle_to_target = atan2(dy, dx);
+      
+      // 3. Comprobar si hemos llegado al waypoint
+      if (distance_to_target < WAYPOINT_THRESHOLD) {
+        printf("Waypoint %d/%d alcanzado.\n", current_path_index + 1, path_length);
+        current_path_index++; // Ir al siguiente punto
+      } else {
+        // 4. Control proporcional para girar hacia el waypoint
+        double angle_error = angle_to_target - robot_yaw;
+        
+        // Normalizar el ángulo a [-PI, PI]
+        while (angle_error > M_PI) angle_error -= 2 * M_PI;
+        while (angle_error < -M_PI) angle_error += 2 * M_PI;
+        
+        // El controlador P ajusta la velocidad de las ruedas para girar
+        // El factor 0.5 es la ganancia proporcional (puedes ajustarla)
+        double turn_speed = angle_error * 0.5; 
+        
+        left_speed = SPEED - turn_speed;
+        right_speed = SPEED + turn_speed;
+      }
+      
+    } else {
+      // No hay ruta o ya se completó
+      printf("Navegación completada o sin ruta.\n");
+      left_speed = 0.0;
+      right_speed = 0.0;
+    }
+      
+    // Limitar la velocidad para que no exceda el máximo
+    if (left_speed > SPEED) left_speed = SPEED;
+    if (left_speed < -SPEED) left_speed = -SPEED;
+    if (right_speed > SPEED) right_speed = SPEED;
+    if (right_speed < -SPEED) right_speed = -SPEED;
+    
+    // Asignar velocidad a los motores
     wb_motor_set_velocity(wheels[0], left_speed);
     wb_motor_set_velocity(wheels[1], right_speed);
     wb_motor_set_velocity(wheels[2], left_speed);
     wb_motor_set_velocity(wheels[3], right_speed);
-        
-    
-     
-   
-
-     // (3) Navegación hacia el siguiente punto (simplificada)
-     
     
     fflush(stdout); 
-    
   };
-
   
   wb_robot_cleanup();
-
   return 0;
 }
