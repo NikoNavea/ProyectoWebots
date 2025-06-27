@@ -61,6 +61,7 @@ Para ver al robot en acción, sigue estas instrucciones:
 
 ## Estructura del Proyecto
 
+```text
 El repositorio está organizado siguiendo las convenciones estándar de Webots:
 /
 ├── controllers/
@@ -75,7 +76,7 @@ El repositorio está organizado siguiendo las convenciones estándar de Webots:
 │   └── MiRobot4WD.proto       <-- Definición del prototipo del robot
 │
 └── README.md                  <-- Este archivo de instrucciones
-
+```
 - **`controllers/`**: Contiene el código fuente que controla el comportamiento del robot.
 - **`worlds/`**: Contiene los archivos `.wbt` que definen los entornos de simulación.
 - **`protos/`**: (Opcional) Contiene las definiciones de nodos de robot personalizados, si se crean.
