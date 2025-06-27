@@ -30,9 +30,8 @@ Sigue estos pasos para configurar el proyecto en tu máquina local.
 1.  **Clonar el repositorio:**
     Abre una terminal o Git Bash y ejecuta el siguiente comando:
     ```bash
-    git clone [https://github.com/tu_usuario/webots-robot-navegacion.git](https://github.com/tu_usuario/webots-robot-navegacion.git)
+    git clone https://github.com/NikoNavea/ProyectoWebots
     ```
-    *(Reemplaza la URL con la de tu repositorio real cuando lo tengas)*
 
 2.  **Navegar al directorio del proyecto:**
     ```bash
@@ -61,18 +60,11 @@ Para ver al robot en acción, sigue estas instrucciones:
 
 ## Estructura del Proyecto
 
-```text
 El repositorio está organizado siguiendo las convenciones estándar de Webots:
-/
-├── controllers/
-│   └── controlador/
-│       ├── controlador.c  <-- Lógica principal del robot
-│   
-├── worlds/
-│   └── mundo.wbt         <-- Archivo del mundo de Webots con el entorno y el robot
-│
-└── README.md                  <-- Este archivo de instrucciones
-```
 - **`controllers/`**: Contiene el código fuente que controla el comportamiento del robot.
+    - **`mi_controlador/`**: Carpeta específica para nuestro controlador.
+        - `mi_controlador.c`: **<-- Lógica principal del robot.**
 - **`worlds/`**: Contiene los archivos `.wbt` que definen los entornos de simulación.
+    - `mi_entorno.wbt`: **<-- Archivo del mundo de Webots con el entorno y el robot.**
+- **`README.md`**: **<-- Este archivo de instrucciones.**
 
