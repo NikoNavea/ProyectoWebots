@@ -65,19 +65,14 @@ Para ver al robot en acción, sigue estas instrucciones:
 El repositorio está organizado siguiendo las convenciones estándar de Webots:
 /
 ├── controllers/
-│   └── mi_controlador/
-│       ├── mi_controlador.c  <-- Lógica principal del robot
-│       
-│
+│   └── controlador/
+│       ├── controlador.c  <-- Lógica principal del robot
+│   
 ├── worlds/
-│   └── mi_entorno.wbt         <-- Archivo del mundo de Webots con el entorno y el robot
-│
-├── protos/
-│   └── MiRobot4WD.proto       <-- Definición del prototipo del robot
+│   └── mundo.wbt         <-- Archivo del mundo de Webots con el entorno y el robot
 │
 └── README.md                  <-- Este archivo de instrucciones
 ```
 - **`controllers/`**: Contiene el código fuente que controla el comportamiento del robot.
 - **`worlds/`**: Contiene los archivos `.wbt` que definen los entornos de simulación.
-- **`protos/`**: (Opcional) Contiene las definiciones de nodos de robot personalizados, si se crean.
 
