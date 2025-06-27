@@ -215,6 +215,13 @@ int main() {
   Point goal = {6,1};
   int path_length = 0;
   int current_path_index = 0;
+  
+  // --- Variables para Métricas de Desempeño ---
+  double total_planning_time_ms = 0.0;
+  int last_planned_path_length = 0;
+  // Mapa persistente para registrar las celdas visitadas
+  int exploration_grid[GRID_SIZE][GRID_SIZE] = {{0}}; 
+  int visited_cells_count = 0;
 
   while (wb_robot_step(TIME_STEP) != -1) {
     double left_speed = 0.0;
@@ -256,12 +263,28 @@ int main() {
    
     printf("--- DEBUG --- CASILLA ACTUAL = ( %i , %i )",casilla_x,casilla_y);
     
+    // Si la celda actual no ha sido visitada, la marcamos y contamos
+    if (exploration_grid[casilla_x][casilla_y] == 0) {
+        exploration_grid[casilla_x][casilla_y] = 1;
+        visited_cells_count++;
+    }
+        
     /* --- 2. LÓGICA DE CONTROL --- */
     if (casilla_x == goal.x && casilla_y == goal.y) {
+    
+        double total_navigation_time = wb_robot_get_time(); // Tiempo total desde el inicio de la simulación
+        double percentage_explored = ((double)visited_cells_count / (double)(GRID_SIZE * GRID_SIZE)) * 100.0;
         printf("\n\n############################################\n");
         printf("¡OBJETIVO ALCANZADO EN LA CASILLA (%d, %d)!\n", goal.x, goal.y);
         printf("############################################\n\n");
         
+        printf("--- Métricas de Desempeño ---\n");
+        printf("- Tiempo total de navegación: %.2f segundos\n", total_navigation_time);
+        printf("- Longitud del último path (celdas): %d\n", last_planned_path_length);
+        printf("- Tiempo total de planificación (A*): %.4f milisegundos\n", total_planning_time_ms);
+        printf("- Porcentaje del mapa explorado: %.2f %%\n", percentage_explored);
+        printf("--------------------------------\n\n");
+            
         // Detener los motores inmediatamente
         wb_motor_set_velocity(wheels[0], 0.0);
         wb_motor_set_velocity(wheels[1], 0.0);
@@ -355,7 +378,11 @@ int main() {
             grid[current_cell.x][current_cell.y] = 0;
             grid[goal.x][goal.y] = 0;
             
+            double planning_start = wb_robot_get_time();
             path_length = plan_path(grid, current_cell, goal, path, MAX_PATH_LEN);
+            double planning_end = wb_robot_get_time();
+            
+            total_planning_time_ms += (planning_end - planning_start) * 1000.0;
             current_path_index = 0;
 
             if (path_length == 0) {
