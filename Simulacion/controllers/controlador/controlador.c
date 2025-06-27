@@ -1,316 +1,365 @@
-#include <webots/distance_sensor.h>
-#include <webots/lidar.h>
-#include <webots/gps.h>
-#include <webots/motor.h>
 #include <webots/robot.h>
-#include <webots/inertial_unit.h>
-#include <math.h>
+#include <webots/motor.h>
+#include <webots/gps.h>
+#include <webots/lidar.h>
+#include <webots/compass.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
+#include <math.h>
+#include <string.h>
 
-#define TIME_STEP 64
-#define GRID_SIZE 8  
+// === PARÁMETROS DE CONFIGURACIÓN ===
+#define TIME_STEP 128
+#define GRID_SIZE 8
 #define CELL_SIZE 0.5
-#define MAX_PATH_LEN 100
-#define MAX_OPEN_NODES 1000
-#define SPEED 4.0
-#define WAYPOINT_THRESHOLD 0.1
-//Distancia para considerar que se ha alcanzado el punto
+#define MAX_PATH_LEN 1000
+#define MAX_OPEN_NODES 2000
 
-typedef struct {
-  int x, y;
-} Point;
+// --- Parámetros de Movimiento MEJORADOS ---
+#define MAX_SPEED 10    // Velocidad más conservadora
+#define KP_TURN 0.07    // Control más suave
+#define GOAL_THRESHOLD 0.0001 // Umbral más tolerante
 
-typedef struct {
-  int x, y;
-  int g, h, f;
-  int parent_index;
-} Node;
-
+// === ESTRUCTURAS Y FUNCIONES A* ===
+typedef struct { int x, y; } Point;
+typedef struct { int x, y; int g, h, f; int parent_index; } Node;
 
 int heuristic(int x1, int y1, int x2, int y2) {
-  return abs(x1 - x2) + abs(y1 - y2);
+    return abs(x1 - x2) + abs(y1 - y2);
+}
+
+void print_grid(int grid[GRID_SIZE][GRID_SIZE], Point start, Point goal) {
+    printf("\n=== GRID DEBUG ===\n");
+    printf("Start: (%d, %d), Goal: (%d, %d)\n", start.x, start.y, goal.x, goal.y);
+    printf("Grid (R=Robot, G=Goal, 1=Obstacle, 0=Free):\n");
+    for (int y = 0; y < GRID_SIZE; y++) {
+        for (int x = 0; x < GRID_SIZE; x++) {
+            if (x == start.x && y == start.y) printf("R ");
+            else if (x == goal.x && y == goal.y) printf("G ");
+            else printf("%d ", grid[y][x]);
+        }
+        printf("\n");
+    }
+    printf("==================\n\n");
 }
 
 int plan_path(int grid[GRID_SIZE][GRID_SIZE], Point start, Point goal, Point path[], int max_path_len) {
-  Node open_list[MAX_OPEN_NODES];
-  int open_count = 0;
-
-  Node closed_list[GRID_SIZE * GRID_SIZE];
-  int closed_count = 0;
-
-  Node start_node = {start.x, start.y, 0, heuristic(start.x, start.y, goal.x, goal.y), 0, -1};
-  start_node.f = start_node.g + start_node.h;
-  open_list[open_count++] = start_node;
-
-  while (open_count > 0) {
-    int best_index = 0;
-    for (int i = 1; i < open_count; i++) {
-      if (open_list[i].f < open_list[best_index].f)
-        best_index = i;
+    printf("Planificando ruta desde (%d,%d) hacia (%d,%d)\n", start.x, start.y, goal.x, goal.y);
+    
+    // Verificar límites
+    if (start.x < 0 || start.x >= GRID_SIZE || start.y < 0 || start.y >= GRID_SIZE ||
+        goal.x < 0 || goal.x >= GRID_SIZE || goal.y < 0 || goal.y >= GRID_SIZE) {
+        printf("ERROR: Posición fuera de límites\n");
+        return 0;
+    }
+    
+    // Si el punto de partida o el de llegada está en un obstáculo, no hay ruta.
+    if (grid[start.y][start.x] == 1) {
+        printf("ERROR: Posición inicial en obstáculo\n");
+        return 0;
+    }
+    if (grid[goal.y][goal.x] == 1) {
+        printf("ERROR: Posición objetivo en obstáculo\n");
+        return 0;
     }
 
-    Node current = open_list[best_index];
-    for (int i = best_index; i < open_count - 1; i++)
-      open_list[i] = open_list[i + 1];
-    open_count--;
-    closed_list[closed_count++] = current;
-
-    if (current.x == goal.x && current.y == goal.y) {
-      int length = 0;
-      Node n = current;
-      while (n.parent_index != -1 && length < max_path_len) {
-        path[length++] = (Point){n.x, n.y};
-        n = closed_list[n.parent_index];
-      }
-      path[length++] = (Point){start.x, start.y};
-      for (int i = 0; i < length / 2; i++) {
-        Point temp = path[i];
-        path[i] = path[length - i - 1];
-        path[length - i - 1] = temp;
-      }
-      return length;
+    Node open_list[MAX_OPEN_NODES]; int open_count = 0;
+    Node closed_list[GRID_SIZE * GRID_SIZE]; int closed_count = 0;
+    bool closed_map[GRID_SIZE][GRID_SIZE] = {false};
+    Node start_node = {start.x, start.y, 0, heuristic(start.x, start.y, goal.x, goal.y), 0, -1};
+    start_node.f = start_node.g + start_node.h;
+    open_list[open_count++] = start_node;
+    
+    while (open_count > 0) {
+        int best_index = 0;
+        for (int i = 1; i < open_count; i++) { 
+            if (open_list[i].f < open_list[best_index].f) best_index = i; 
+        }
+        Node current = open_list[best_index];
+        for (int i = best_index; i < open_count - 1; i++) open_list[i] = open_list[i + 1];
+        open_count--;
+        closed_list[closed_count++] = current;
+        closed_map[current.y][current.x] = true;
+        
+        if (current.x == goal.x && current.y == goal.y) {
+            printf("¡Ruta encontrada!\n");
+            int length = 0; Node n = current;
+            while (n.parent_index != -1 && length < max_path_len) { 
+                path[length++] = (Point){n.x, n.y}; 
+                n = closed_list[n.parent_index]; 
+            }
+            path[length++] = (Point){start.x, start.y};
+            for (int i = 0; i < length / 2; i++) { 
+                Point temp = path[i]; 
+                path[i] = path[length - i - 1]; 
+                path[length - i - 1] = temp; 
+            }
+            return length;
+        }
+        
+        const int dx[] = {0, 1, 0, -1}, dy[] = {1, 0, -1, 0};
+        for (int d = 0; d < 4; d++) {
+            int nx = current.x + dx[d], ny = current.y + dy[d];
+            if (nx < 0 || ny < 0 || nx >= GRID_SIZE || ny >= GRID_SIZE || 
+                grid[ny][nx] == 1 || closed_map[ny][nx]) continue;
+            
+            int g = current.g + 1, h = heuristic(nx, ny, goal.x, goal.y), f = g + h;
+            int in_open = -1;
+            for (int i = 0; i < open_count; i++) { 
+                if (open_list[i].x == nx && open_list[i].y == ny) { 
+                    in_open = i; break; 
+                } 
+            }
+            int current_in_closed_idx = closed_count - 1;
+            if (in_open != -1) {
+                if (f < open_list[in_open].f) { 
+                    open_list[in_open].g = g; 
+                    open_list[in_open].f = f; 
+                    open_list[in_open].parent_index = current_in_closed_idx; 
+                }
+            } else if (open_count < MAX_OPEN_NODES) {
+                Node neighbor = {nx, ny, g, h, f, current_in_closed_idx}; 
+                open_list[open_count++] = neighbor;
+            }
+        }
     }
-
-    const int dx[4] = {0, 1, 0, -1};
-    const int dy[4] = {1, 0, -1, 0};
-    for (int d = 0; d < 4; d++) {
-      int nx = current.x + dx[d];
-      int ny = current.y + dy[d];
-      if (nx < 0 || ny < 0 || nx >= GRID_SIZE || ny >= GRID_SIZE)
-        continue;
-      if (grid[nx][ny] == 1)
-        continue;
-
-      int in_closed = 0;
-      for (int i = 0; i < closed_count; i++) {
-        if (closed_list[i].x == nx && closed_list[i].y == ny) {
-          in_closed = 1;
-          break;
-        }
-      }
-      if (in_closed) continue;
-
-      int g = current.g + 1;
-      int h = heuristic(nx, ny, goal.x, goal.y);
-      int f = g + h;
-
-      int in_open = -1;
-      for (int i = 0; i < open_count; i++) {
-        if (open_list[i].x == nx && open_list[i].y == ny) {
-          in_open = i;
-          break;
-        }
-      }
-
-      if (in_open != -1) {
-        if (f < open_list[in_open].f) {
-          open_list[in_open].g = g;
-          open_list[in_open].h = h;
-          open_list[in_open].f = f;
-          open_list[in_open].parent_index = closed_count - 1;
-        }
-      } else if (open_count < MAX_OPEN_NODES) {
-        Node neighbor = {nx, ny, g, h, f, closed_count - 1};
-        open_list[open_count++] = neighbor;
-      }
-    }
-  }
-  return 0;
+    printf("No se encontró ruta - lista abierta vacía\n");
+    return 0;
 }
 
-/*
- * This is the main program.
- * The arguments of the main function can be specified by the
- * "controllerArgs" field of the Robot node
-*/
- 
+bool is_path_obstructed(Point path[], int length, int current_index, int grid[GRID_SIZE][GRID_SIZE]) {
+    for (int i = current_index; i < length; ++i) {
+        if (path[i].y >= 0 && path[i].y < GRID_SIZE && path[i].x >= 0 && path[i].x < GRID_SIZE) {
+            if (grid[path[i].y][path[i].x] == 1) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+// NUEVA FUNCIÓN: Filtro para limpiar grid de obstáculos fantasma
+void clean_grid_around_robot(int grid[GRID_SIZE][GRID_SIZE], double robot_x, double robot_y) {
+    int robot_cell_x = (int)((robot_x + GRID_SIZE * CELL_SIZE / 2) / CELL_SIZE);
+    int robot_cell_y = (int)((robot_y + GRID_SIZE * CELL_SIZE / 2) / CELL_SIZE);
+    
+    // Limpiar celdas inmediatamente alrededor del robot
+    for (int dy = -1; dy <= 1; dy++) {
+        for (int dx = -1; dx <= 1; dx++) {
+            int cell_x = robot_cell_x + dx;
+            int cell_y = robot_cell_y + dy;
+            if (cell_x >= 0 && cell_x < GRID_SIZE && cell_y >= 0 && cell_y < GRID_SIZE) {
+                // Solo limpiar la celda del robot mismo
+                if (dx == 0 && dy == 0) {
+                    grid[cell_y][cell_x] = 0;
+                }
+            }
+        }
+    }
+}
+
 int main() {
-  wb_robot_init();
-  double left_speed = 1.0;
-  double right_speed = 1.0;
-  int i;
-
-  //motores
-  WbDeviceTag wheels[4];
-  char wheels_names[4][8] = {"wheel1", "wheel2", "wheel3", "wheel4"};
-  for (i = 0; i < 4; i++) {
-    wheels[i] = wb_robot_get_device(wheels_names[i]);
-    wb_motor_set_position(wheels[i], INFINITY);
-  }
-  
-  //sensores 
-  WbDeviceTag ds[2];
-  char ds_names[2][10] = {"ds_left", "ds_right"};
-  for (i = 0; i < 2; i++) {
-    ds[i] = wb_robot_get_device(ds_names[i]);
-    wb_distance_sensor_enable(ds[i], TIME_STEP);
-  }
-  
-  //lidar
-  
-  WbDeviceTag lidar=wb_robot_get_device("lidar");
-  wb_lidar_enable(lidar,TIME_STEP);
-  wb_lidar_enable_point_cloud(lidar);
-  
-  //GPS
-  WbDeviceTag gps = wb_robot_get_device("gps");
-  wb_gps_enable(gps, TIME_STEP);
-  
-  WbDeviceTag imu = wb_robot_get_device("imu");
-  wb_inertial_unit_enable(imu, TIME_STEP);
-
-  //Variables de estado para la navegación
-  int grid[GRID_SIZE][GRID_SIZE] = {0};
-  Point path[MAX_PATH_LEN];
-  int path_length = 0;
-  int current_path_index = 0;
-  bool replan = true;
-  
-  while (wb_robot_step(TIME_STEP) != -1) {
-   
-   //Flags
-   bool ds_detect_near=false;
-   bool lidar_detect_near=false;
-   
-   left_speed = 0.0;
-   right_speed = 0.0;
-   
-   //Percepción
-   double ds_values[2];
-   for (i = 0; i < 2; i++){
-     ds_values[i] = wb_distance_sensor_get_value(ds[i]);
-     printf("Sensor %d: %.2f\n", i, ds_values[i]);
-   }
-  if (ds_values[0] < 950.0 || ds_values[1] < 950.0)
-     ds_detect_near=true;
-        
-  
-    
-    //GPS
-    const double *gps_pose = wb_gps_get_values(gps);
-    float robot_x = gps_pose[0];
-    float robot_y = gps_pose[2]; // Webots usa X-Z como plano horizontal
-   
-    // Obtener orientación del robot desde la IMU en radianes   
-    const double *imu_rpy = wb_inertial_unit_get_roll_pitch_yaw(imu);
-    double robot_yaw = imu_rpy[2]; //Yaw es el ángulo en el plano horizontal
-    
-    
-    //lidar
-    // (1) Obtener datos del LIDAR y construir mapa de obstáculos
-    const float *ranges = wb_lidar_get_range_image(lidar);
-    int resolution = wb_lidar_get_horizontal_resolution(lidar);
-    double fov = wb_lidar_get_fov(lidar);
-    
-    // Limpiar la grilla antes de volver a mapear (mapeo local)
-    for(int gx=0; gx < GRID_SIZE; ++gx) for(int gy=0; gy < GRID_SIZE; ++gy) grid[gx][gy] = 0;
-    
-    for (int i = 0; i < resolution; i++) {
-      double angle = -fov / 2 + i * (fov / resolution);
-      double dist = ranges[i];
-      
-      //printf("Sensor lidar %d: %.2f\n", i, dist);
-      
-      if(isinf(dist)) continue; //ignorar infinito
-
-      if (dist < 1.0) {
-        float obs_x = robot_x + dist * cos(angle);
-        float obs_y = robot_y + dist * sin(angle);
-
-        int cell_x = (int)((obs_x + GRID_SIZE * CELL_SIZE / 2) / CELL_SIZE);
-        int cell_y = (int)((obs_y + GRID_SIZE * CELL_SIZE / 2) / CELL_SIZE);
-
-        if (cell_x >= 0 && cell_x < GRID_SIZE && cell_y >= 0 && cell_y < GRID_SIZE)
-          grid[cell_x][cell_y] = 1;  // Marcado como ocupado
-      }
-      
-      if(dist < 0.3)
-        lidar_detect_near=true; //obstaculo muy cerca girar
-    
-      }
-      
-      //plan path
-      // --- PLANIFICACIÓN ---
-    if (replan) {
-      Point start = {(int)((robot_x + GRID_SIZE * CELL_SIZE / 2) / CELL_SIZE), 
-                     (int)((robot_y + GRID_SIZE * CELL_SIZE / 2) / CELL_SIZE)};
-      Point goal = {GRID_SIZE - 2, GRID_SIZE - 2}; // Objetivo fijo por ahora
-      
-      path_length = plan_path(grid, start, goal, path, MAX_PATH_LEN);
-      current_path_index = 0; // Reiniciar el seguimiento de la ruta
-      replan = false; // No replanificar hasta que sea necesario
-      
-      if (path_length > 0) {
-        printf("Ruta encontrada con %d puntos. Iniciando navegación.\n", path_length);
-      } else {
-        printf("No se pudo encontrar una ruta.\n");
-      }
+    wb_robot_init();
+    WbDeviceTag wheels[4];
+    char wheels_names[4][8] = {"wheel1", "wheel2", "wheel3", "wheel4"};
+    for (int i = 0; i < 4; i++) { 
+        wheels[i] = wb_robot_get_device(wheels_names[i]); 
+        wb_motor_set_position(wheels[i], INFINITY); 
+        wb_motor_set_velocity(wheels[i], 0.0); 
     }
+    WbDeviceTag lidar = wb_robot_get_device("lidar"); wb_lidar_enable(lidar, TIME_STEP);
+    WbDeviceTag gps = wb_robot_get_device("gps"); wb_gps_enable(gps, TIME_STEP);
+    WbDeviceTag compass = wb_robot_get_device("compass"); wb_compass_enable(compass, TIME_STEP);
+
+    int grid[GRID_SIZE][GRID_SIZE] = {0};
+    Point path[MAX_PATH_LEN];
+    int path_length = 0;
+    int current_path_index = 0;
+    
+    // Objetivo más cercano para pruebas
+    Point goal_world = {1.0, 1.0};
+    Point goal_grid;
+    
+    int debug_counter = 0;
+    bool first_run = true;
+
+    while (wb_robot_step(TIME_STEP) != -1) {
+        const double *pose = wb_gps_get_values(gps);
+        double robot_x = pose[0], robot_y = pose[2];
+        const double *north = wb_compass_get_values(compass);
+        double robot_theta = atan2(north[0], north[2]);
         
-    // --- CONTROL ---
-    if (lidar_detect_near || ds_detect_near) {
-      // Evasión de emergencia: Girar
-      printf("Obstáculo cercano! Evasión de emergencia.\n");
-      left_speed = SPEED;
-      right_speed = -SPEED;
-      replan = true; // Forzar replanificación después de la evasión
-    } else if (path_length > 0 && current_path_index < path_length) {
-      // NUEVO: Lógica para seguir el camino (Path Following)
-      
-      // 1. Definir el punto objetivo actual (waypoint)
-      Point current_waypoint_grid = path[current_path_index];
-      double target_x = (current_waypoint_grid.x - GRID_SIZE / 2) * CELL_SIZE;
-      double target_y = (current_waypoint_grid.y - GRID_SIZE / 2) * CELL_SIZE;
-      
-      // 2. Calcular la distancia y el ángulo hacia el waypoint
-      double dx = target_x - robot_x;
-      double dy = target_y - robot_y;
-      double distance_to_target = sqrt(dx * dx + dy * dy);
-      double angle_to_target = atan2(dy, dx);
-      
-      // 3. Comprobar si hemos llegado al waypoint
-      if (distance_to_target < WAYPOINT_THRESHOLD) {
-        printf("Waypoint %d/%d alcanzado.\n", current_path_index + 1, path_length);
-        current_path_index++; // Ir al siguiente punto
-      } else {
-        // 4. Control proporcional para girar hacia el waypoint
-        double angle_error = angle_to_target - robot_yaw;
+        // Actualizar posición del objetivo en grid
+        goal_grid.x = (int)((goal_world.x + GRID_SIZE * CELL_SIZE / 2) / CELL_SIZE);
+        goal_grid.y = (int)((goal_world.y + GRID_SIZE * CELL_SIZE / 2) / CELL_SIZE);
         
-        // Normalizar el ángulo a [-PI, PI]
-        while (angle_error > M_PI) angle_error -= 2 * M_PI;
-        while (angle_error < -M_PI) angle_error += 2 * M_PI;
+        if (first_run) {
+            printf("Configuración inicial:\n");
+            printf("Robot mundo: (%.2f, %.2f)\n", robot_x, robot_y);
+            printf("Objetivo mundo: (%.2f, %.2f)\n", goal_world.x, goal_world.y);
+            printf("GRID_SIZE: %d, CELL_SIZE: %.2f\n", GRID_SIZE, CELL_SIZE);
+            first_run = false;
+        }
         
-        // El controlador P ajusta la velocidad de las ruedas para girar
-        // El factor 0.5 es la ganancia proporcional (puedes ajustarla)
-        double turn_speed = angle_error * 0.5; 
+        // *** CLAVE: LIMPIAR COMPLETAMENTE EL GRID EN CADA ITERACIÓN ***
+        memset(grid, 0, sizeof(grid));
         
-        left_speed = SPEED - turn_speed;
-        right_speed = SPEED + turn_speed;
-      }
-      
-    } else {
-      // No hay ruta o ya se completó
-      printf("Navegación completada o sin ruta.\n");
-      left_speed = 0.0;
-      right_speed = 0.0;
+        const float *ranges = wb_lidar_get_range_image(lidar);
+        int resolution = wb_lidar_get_horizontal_resolution(lidar);
+        double fov = wb_lidar_get_fov(lidar);
+        
+        // NUEVA LÓGICA: Detección de obstáculos más conservadora
+        double safety_margin = 0.15; // Reducido de 0.2 a 0.15
+        double min_detection_distance = 0.1;  // Ignorar lecturas muy cerca
+        double max_detection_distance = 1.5;  // Reducido de 2.0 a 1.5
+        
+        int obstacles_detected = 0; // Para debug
+        
+        for (int i = 0; i < resolution; i++) {
+            double angle = fov * (double)i / resolution - fov / 2.0;
+            double dist = ranges[i];
+            
+            // Filtrar lecturas inválidas y muy cercanas/lejanas
+            if (isinf(dist) || isnan(dist) || dist < min_detection_distance || dist > max_detection_distance) {
+                continue;
+            }
+
+            double global_angle = robot_theta + angle;
+            double obs_x = robot_x + (dist - safety_margin) * cos(global_angle);
+            double obs_y = robot_y + (dist - safety_margin) * sin(global_angle);
+            
+            int cell_x = (int)((obs_x + GRID_SIZE * CELL_SIZE / 2) / CELL_SIZE);
+            int cell_y = (int)((obs_y + GRID_SIZE * CELL_SIZE / 2) / CELL_SIZE);
+            
+            if (cell_x >= 0 && cell_x < GRID_SIZE && cell_y >= 0 && cell_y < GRID_SIZE) {
+                grid[cell_y][cell_x] = 1;
+                obstacles_detected++;
+            }
+        }
+        
+        // Limpiar posición del robot para asegurar que no se marque como obstáculo
+        clean_grid_around_robot(grid, robot_x, robot_y);
+        
+        // NUEVA LÓGICA: Comportamiento de emergencia más específico
+        bool emergency_stop = false;
+        double min_distance = INFINITY;
+        double emergency_threshold = 0.25; // Aumentado ligeramente
+        
+        // Revisar solo el frente inmediato para emergencias
+        int front_start = (int)(resolution * 0.45);  // Más centrado
+        int front_end = (int)(resolution * 0.55);    // Más centrado
+        
+        for (int i = front_start; i < front_end; i++) {
+            double dist = ranges[i];
+            if (!isinf(dist) && !isnan(dist) && dist > 0.05) {
+                if (dist < min_distance) {
+                    min_distance = dist;
+                }
+            }
+        }
+        
+        // Activar emergencia solo si hay obstáculo MUY cerca
+        if (min_distance < emergency_threshold) {
+            emergency_stop = true;
+            printf("¡EMERGENCIA! Obstáculo frontal a %.2f metros\n", min_distance);
+        }
+        
+        // Debug mejorado
+        if (debug_counter % 50 == 0) {
+            printf("Obstáculos detectados: %d, Min distancia frontal: %.2f\n", 
+                   obstacles_detected, min_distance);
+        }
+        
+        bool needs_replan = (path_length == 0) || (current_path_index >= path_length) || 
+                           is_path_obstructed(path, path_length, current_path_index, grid);
+        
+        if (needs_replan && !emergency_stop) {
+            Point start_grid = {
+                (int)((robot_x + GRID_SIZE*CELL_SIZE/2)/CELL_SIZE), 
+                (int)((robot_y + GRID_SIZE*CELL_SIZE/2)/CELL_SIZE)
+            };
+            
+            // Debug cada 50 iteraciones
+            if (debug_counter % 50 == 0) {
+                print_grid(grid, start_grid, goal_grid);
+            }
+            debug_counter++;
+            
+            path_length = plan_path(grid, start_grid, goal_grid, path, MAX_PATH_LEN);
+            current_path_index = 1;
+            
+            if (path_length == 0) {
+                printf("ADVERTENCIA: No se pudo encontrar una ruta.\n");
+            } else {
+                printf("Nueva ruta encontrada con %d pasos.\n", path_length);
+            }
+        }
+        
+        double left_speed = 0.0, right_speed = 0.0;
+        
+        if (emergency_stop) {
+            // Comportamiento de emergencia: parar y girar ligeramente
+            left_speed = -0.5;
+            right_speed = 1.0;
+            printf("Ejecutando maniobra de emergencia\n");
+        }
+        else if (path_length > 1 && current_path_index < path_length) {
+            Point next_waypoint = path[current_path_index];
+            double target_x = (next_waypoint.x - GRID_SIZE / 2.0) * CELL_SIZE;
+            double target_y = (next_waypoint.y - GRID_SIZE / 2.0) * CELL_SIZE;
+            
+            double angle_to_target = atan2(target_y - robot_y, target_x - robot_x);
+            double angle_diff = atan2(sin(angle_to_target - robot_theta), cos(angle_to_target - robot_theta));
+            
+            // Control proporcional más suave
+            double turn_speed = KP_TURN * angle_diff;
+            
+            // Reducir velocidad si hay obstáculos cerca pero no en emergencia
+            double speed_factor = 1.0;
+            if (min_distance < 0.8 && min_distance > emergency_threshold) {
+                speed_factor = (min_distance - emergency_threshold) / (0.8 - emergency_threshold);
+                speed_factor = fmax(0.2, speed_factor); // Mínimo 20% de velocidad
+            }
+            
+            double forward_speed = MAX_SPEED * speed_factor * (1.0 - 0.6 * fabs(angle_diff) / M_PI);
+
+            left_speed = forward_speed - turn_speed;
+            right_speed = forward_speed + turn_speed;
+            
+            double dist_to_waypoint = sqrt(pow(target_x - robot_x, 2) + pow(target_y - robot_y, 2));
+            if (dist_to_waypoint < CELL_SIZE * 0.8) {  // Más tolerante
+                current_path_index++;
+                printf("Avanzando al siguiente waypoint: %d/%d\n", current_path_index, path_length);
+            }
+        } else {
+            // Comportamiento de búsqueda más suave cuando no hay ruta
+            left_speed = -0.8;
+            right_speed = 0.8;
+        }
+
+        double dist_to_goal = sqrt(pow(goal_world.x - robot_x, 2) + pow(goal_world.y - robot_y, 2));
+        if (dist_to_goal < GOAL_THRESHOLD) {
+            printf("\n¡OBJETIVO ALCANZADO!\n");
+            left_speed = 0; right_speed = 0;
+        }
+        
+        // Saturar velocidades para no exceder el límite de los motores
+        double max_motor_speed = 9.5; // Margen de seguridad bajo el límite de 10
+        
+        if (left_speed > max_motor_speed) left_speed = max_motor_speed;
+        if (left_speed < -max_motor_speed) left_speed = -max_motor_speed;
+        if (right_speed > max_motor_speed) right_speed = max_motor_speed;
+        if (right_speed < -max_motor_speed) right_speed = -max_motor_speed;
+        
+        wb_motor_set_velocity(wheels[0], left_speed);
+        wb_motor_set_velocity(wheels[1], right_speed);
+        wb_motor_set_velocity(wheels[2], left_speed);
+        wb_motor_set_velocity(wheels[3], right_speed);
+        
+        if (dist_to_goal < GOAL_THRESHOLD) break;
     }
-      
-    // Limitar la velocidad para que no exceda el máximo
-    if (left_speed > SPEED) left_speed = SPEED;
-    if (left_speed < -SPEED) left_speed = -SPEED;
-    if (right_speed > SPEED) right_speed = SPEED;
-    if (right_speed < -SPEED) right_speed = -SPEED;
-    
-    // Asignar velocidad a los motores
-    wb_motor_set_velocity(wheels[0], left_speed);
-    wb_motor_set_velocity(wheels[1], right_speed);
-    wb_motor_set_velocity(wheels[2], left_speed);
-    wb_motor_set_velocity(wheels[3], right_speed);
-    
-    fflush(stdout); 
-  };
-  
-  wb_robot_cleanup();
-  return 0;
+
+    wb_robot_cleanup();
+    return 0;
 }

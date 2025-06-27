@@ -1,79 +1,82 @@
-## SW de simulación
-Webots
+# Navegación Autónoma de Robot 4WD en Webots
 
-## Descripción del Proyecto
+Este proyecto presenta la simulación de un robot móvil de 4 ruedas (4WD) capaz de navegar de forma autónoma en un entorno con obstáculos. El robot utiliza un sensor LIDAR para mapear su entorno, el algoritmo A* para planificar la ruta más corta y sensores de distancia para una evasión de colisiones reactiva.
 
-El presente proyecto tiene como objetivo el desarrollo e implementación de un robot móvil autónomo en el simulador Webots, utilizando control cinemático diferencial y sensores para la percepción del entorno.
+## Índice
+1. [Características Principales](#características-principales)
+2. [Requisitos Previos](#requisitos-previos)
+3. [Instalación](#instalación)
+4. [Cómo Ejecutar la Simulación](#cómo-ejecutar-la-simulación)
+5. [Estructura del Proyecto](#estructura-del-proyecto)
 
-**El robot es capaz de:**
+## Características Principales
+- **Navegación Autónoma:** El robot se desplaza de un punto de inicio a un punto objetivo definido en el código.
+- **Mapeo en Tiempo Real:** Construye y actualiza una grilla de ocupación de 8x8 del entorno utilizando datos del sensor LIDAR.
+- **Planificación de Rutas con A***: Calcula la ruta óptima en el mapa actual para evitar obstáculos de manera eficiente.
+- **Evasión de Obstáculos Reactiva:** Utiliza dos sensores de distancia frontales como una capa de seguridad para evitar colisiones inminentes, sobreponiéndose al plan de A* si es necesario.
+- **Control Skid-Steer:** Implementación de control de movimiento para una plataforma de 4 ruedas.
 
-    - Detectar y evitar obstáculos en tiempo real mediante la combinación de un sensor LIDAR 2D y sensores de distancia (ultrasónicos o infrarrojos).
+## Requisitos Previos
 
-    - Construir un mapa local del entorno (grilla de ocupación 8x8) a partir de los datos del LIDAR.
+Asegúrate de tener instalado el siguiente software antes de comenzar:
 
-    - Planificar rutas óptimas en el mapa utilizando el algoritmo de planificación A* (A-Star).
+- **Webots:** Versión **R2023b** o superior.
+  - [Página de descarga oficial de Webots](https://cyberbotics.com/download)
+- **C**
+## Instalación
 
-    - Navegar de manera autónoma hacia un objetivo definido en el entorno simulado, ajustando su trayectoria en función de la percepción actualizada.
+Sigue estos pasos para configurar el proyecto en tu máquina local.
 
-El desarrollo integra percepción, planificación y control en un entorno dinámico, permitiendo que el robot reaccione ante cambios en su entorno y tome decisiones en tiempo real. El robot se prueba en un entorno controlado de 4m x 4m con obstáculos distribuidos, evaluando su desempeño en términos de eficiencia de navegación, precisión de planificación y robustez en la evasión de obstáculos.
+1.  **Clonar el repositorio:**
+    Abre una terminal o Git Bash y ejecuta el siguiente comando:
+    ```bash
+    git clone [https://github.com/tu_usuario/webots-robot-navegacion.git](https://github.com/tu_usuario/webots-robot-navegacion.git)
+    ```
+    *(Reemplaza la URL con la de tu repositorio real cuando lo tengas)*
 
-## Arquitectura del Software
+2.  **Navegar al directorio del proyecto:**
+    ```bash
+    cd webots-robot-navegacion
+    ```
 
-El sistema de control del robot se organiza en tres niveles principales:
+## Cómo Ejecutar la Simulación
 
-### 1️⃣ Percepción
+Para ver al robot en acción, sigue estas instrucciones:
 
-- **LIDAR 2D (128 resoluciones):**
-  - Obtiene un mapa parcial del entorno en cada ciclo.
-  - Detecta obstáculos en un rango de hasta 1 metro.
-  - Construye un mapa de ocupación (grilla 8x8).
+1.  **Abrir Webots:** Inicia la aplicación Webots en tu sistema.
 
-- **Sensores de distancia (ultrasónicos/infrarrojos):**
-  - Detectan obstáculos cercanos (frontales).
-  - Proveen una capa de seguridad adicional para la evasión reactiva.
+2.  **Abrir el Mundo de Simulación:**
+    - En Webots, ve al menú `File` > `Open World...`.
+    - Navega hasta el directorio donde clonaste el proyecto.
+    - Selecciona el archivo del mundo: `worlds/mi_entorno.wbt` y haz clic en `Open`.
 
-- **GPS:**
-  - Obtiene la posición actual del robot en el entorno simulado (coordenadas X, Z).
+3.  **Iniciar la Simulación:**
+    - Una vez que el mundo se haya cargado, verás el entorno con el robot y los obstáculos.
+    - Para iniciar la simulación, presiona el botón **"Real-time" (play)** en la barra de herramientas superior (el ícono `▶️`).
 
-### 2️⃣ Planificación
+4.  **Observar el Comportamiento:**
+    - La simulación comenzará.
+    - La **consola de Webots** mostrará los mensajes generados por el controlador del robot, como la grilla de ocupación actualizada y el estado actual (ej. "Planificando ruta...", "Evasión de obstáculo activada").
+    - El robot debería comenzar a moverse, evitando los obstáculos en su camino hacia el punto objetivo.
 
-- **Grilla de ocupación:**
-  - Mapa 2D representado como una matriz `grid[8][8]`.
-  - Celdas marcadas como libres u ocupadas.
+## Estructura del Proyecto
 
-- **Algoritmo de planificación A\* (A-Star):**
-  - Calcula la ruta óptima desde la posición actual hacia el objetivo.
-  - Se ejecuta en cada ciclo para ajustar el plan en función de los cambios en el mapa.
+El repositorio está organizado siguiendo las convenciones estándar de Webots:
+/
+├── controllers/
+│   └── mi_controlador/
+│       ├── mi_controlador.c  <-- Lógica principal del robot
+│       
+│
+├── worlds/
+│   └── mi_entorno.wbt         <-- Archivo del mundo de Webots con el entorno y el robot
+│
+├── protos/
+│   └── MiRobot4WD.proto       <-- Definición del prototipo del robot
+│
+└── README.md                  <-- Este archivo de instrucciones
 
-### 3️⃣ Control
-
-- **Control de navegación:**
-  - Si se detecta un obstáculo cercano → evasión reactiva (giro en el lugar).
-  - Si no hay obstáculos cercanos → seguimiento del camino planificado (A\*).
-
-- **Controlador de motores:**
-  - Control cinemático diferencial (velocidad de ruedas izquierda/derecha).
-  - Ajustes simples de velocidad en función del ángulo hacia el waypoint actual.
-
-Esta arquitectura modular permite la integración de múltiples fuentes de percepción para una navegación robusta, combinando planificación deliberativa (A\*) con comportamientos reactivos (evasión rápida).
-## Resultados
-
-### Métricas de desempeño
-
-- **Tiempo total de navegación:** ___ segundos
-- **Longitud del path (celdas):** ___
-- **Tiempo de planificación (A\*):** ___ milisegundos
-- **Porcentaje del mapa explorado:** ___ %
-
-### Análisis de algoritmos
-
-- **Precisión:** El algoritmo A\* logra rutas óptimas en escenarios conocidos.
-- **Eficiencia:** La planificación en grilla 8x8 es rápida (< 50 ms por iteración).
-- **Robustez:** La combinación LIDAR + Distance Sensor permite evitar obstáculos dinámicos.
-
-### Reflexión sobre mejoras
-
-- Implementar control proporcional hacia el waypoint.
-- Usar SLAM o un mapeo más denso para escenarios más complejos.
-- Integrar planificación incremental para ambientes dinámicos.
+- **`controllers/`**: Contiene el código fuente que controla el comportamiento del robot.
+- **`worlds/`**: Contiene los archivos `.wbt` que definen los entornos de simulación.
+- **`protos/`**: (Opcional) Contiene las definiciones de nodos de robot personalizados, si se crean.
 
