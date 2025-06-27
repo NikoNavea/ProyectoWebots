@@ -7,46 +7,30 @@ EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/project
 WorldInfo {
 }
 Viewpoint {
-  orientation -0.3578011255384946 -0.0619622094947228 0.9317397915501509 3.461551011991932
-  position 6.086154018252933 0.5547562830495163 5.5167809553111775
+  orientation 0.035374181403722615 0.9986242708885824 -0.0387070133472432 1.4821702841824524
+  position -1.735434721830202 -0.8609632294444601 2.6982864216791564
 }
 TexturedBackground {
 }
 TexturedBackgroundLight {
 }
 RectangleArena {
-  translation -0.489568 0.329304 0.03
+  translation 1.59215e-07 0 0.03
   rotation 0 1 0 5.30716e-06
   floorSize 4 4
 }
-DEF Obs1 Solid {
-  translation -0.222869 -1.24897 0.142502
-  rotation -0.002646061317764138 4.828432404606054e-05 0.9999964980079312 3.12429
-  children [
-    Shape {
-      appearance PBRAppearance {
-      }
-      geometry Box {
-        size 1 0.05 0.5
-      }
-    }
-  ]
-  boundingObject Box {
-    size 1 0.05 0.5
-  }
-}
 Robot {
-  translation -1.42351 0.713473 0.0696253
-  rotation -0.012561928574481563 0.01868416104078558 0.9997465179117612 0.0939271739338515
+  translation -1.41471 -1.65421 0.0658528
+  rotation 0.010286103703590255 -0.002283961959076226 0.9999444882534072 1.4997403061004253
   children [
-    Compass {
+    Display {
+      name "map_display"
     }
     InertialUnit {
-      name "imu"
+      name "inertial_unit"
     }
     DEF gps GPS {
       translation -0.05 -0.02 0.03
-      rotation 0 0 1 -2.8797953071795863
       children [
         Shape {
           appearance PBRAppearance {
@@ -90,11 +74,10 @@ Robot {
       }
       physics Physics {
       }
-      horizontalResolution 32
-      fieldOfView 1.5
-      verticalFieldOfView 1
+      horizontalResolution 128
+      fieldOfView 3.14
+      verticalFieldOfView 0.1
       numberOfLayers 1
-      maxRange 0.2
     }
     DEF BODY Shape {
       appearance PBRAppearance {
@@ -108,7 +91,7 @@ Robot {
     }
     DEF WHEEL1 HingeJoint {
       jointParameters HingeJointParameters {
-        position 70990.64725944713
+        position 9337.190494962535
         axis 0 1 0
         anchor 0.05 0.06 0
       }
@@ -118,8 +101,8 @@ Robot {
         }
       ]
       endPoint Solid {
-        translation 0.05084497543489912 0.06043224674532349 0.000332221520143557
-        rotation -0.030538445044510663 0.6998596519028735 -0.7136272633613798 3.1909222798525856
+        translation 0.04909464982601026 0.06043224674532349 -6.852507925038072e-05
+        rotation 0.966022335659465 0.1772668264496869 -0.1880885941451224 1.6236777461774463
         children [
           DEF WHEEL Shape {
             appearance PBRAppearance {
@@ -141,7 +124,7 @@ Robot {
     }
     DEF WHEEL2 HingeJoint {
       jointParameters HingeJointParameters {
-        position 58515.2067927689
+        position 7507.022581843068
         axis 0 1 0
         anchor 0.05 -0.06 0
       }
@@ -151,8 +134,8 @@ Robot {
         }
       ]
       endPoint Solid {
-        translation 0.04999849070189097 -0.06000008469764562 1.6288940059832692e-06
-        rotation 0.9976051185499567 -0.048908116037727226 0.0489083186029431 1.5731977897684342
+        translation 0.049998012552530745 -0.06000008469764562 -9.906205236834591e-07
+        rotation 0.6491447131278273 -0.537870327589773 0.5378723381218454 1.9900485698012567
         children [
           USE WHEEL
         ]
@@ -164,7 +147,7 @@ Robot {
     }
     DEF WHEEL3 HingeJoint {
       jointParameters HingeJointParameters {
-        position 70990.6500816072
+        position 9337.190358625345
         axis 0 1 0
         anchor -0.05 0.06 0
       }
@@ -174,8 +157,8 @@ Robot {
         }
       ]
       endPoint Solid {
-        translation -0.049995828790510614 0.060000084994313085 -2.039696395091813e-06
-        rotation 0.028602316163787736 -0.7068161756348131 0.706818789627896 3.0844037647689335
+        translation -0.05000339450656291 0.060000084994313085 3.168071208578251e-06
+        rotation -0.9654835043133454 -0.18417568670602888 0.18417632672302106 4.6772662368987445
         children [
           USE WHEEL
         ]
@@ -187,7 +170,7 @@ Robot {
     }
     DEF WHEEL4 HingeJoint {
       jointParameters HingeJointParameters {
-        position 58515.210959344244
+        position 7507.02208477057
         axis 0 1 0
         anchor -0.05 -0.06 0
       }
@@ -197,8 +180,8 @@ Robot {
         }
       ]
       endPoint Solid {
-        translation -0.049989900198008703 -0.0600038201240265 3.1192958497313516e-06
-        rotation 0.9978040654114401 -0.046817038888676256 0.046853088671919 1.5729733425566976
+        translation -0.050001741295490766 -0.05999991499841628 -1.178437434006157e-06
+        rotation 0.6489546990613213 -0.5379849598784943 0.5379869715065273 1.9903159644976307
         children [
           USE WHEEL
         ]
@@ -245,229 +228,82 @@ Robot {
   ]
   boundingObject USE BODY
   physics Physics {
+    density -1
     mass 1
   }
   controller "controlador"
   window "<none>"
 }
 Solid {
-  translation -1.34884 -0.459107 5.59552e-14
-  rotation 0 0 1 1.5708
+  translation -0.759613 -0.73351 0.32
+  rotation 0 0 1 -1.570795613280012
   children [
     Shape {
       appearance PBRAppearance {
       }
       geometry Box {
-        size 0.9 0.05 0.6
+        size 2.5 0.05 0.6
       }
     }
   ]
   name "solid(1)"
-  boundingObject Box {
-    size 0.9 0.05 0.6
-  }
-}
-Solid {
-  translation -1.87071 0.602652 -6.30607e-14
-  rotation 2.3464099999870814e-06 -2.3464099999870814e-06 0.9999999999944944 1.5708
-  children [
-    Shape {
-      appearance PBRAppearance {
-      }
-      geometry Box {
-        size 0.9 0.05 0.6
-      }
+  boundingObject Shape {
+    appearance PBRAppearance {
     }
-  ]
-  name "solid(3)"
-  boundingObject Box {
-    size 0.9 0.05 0.6
-  }
-}
-Solid {
-  translation -0.133341 0.401607 -6.30607e-14
-  rotation 2.3464099999870814e-06 -2.3464099999870814e-06 0.9999999999944944 1.5708
-  children [
-    Shape {
-      appearance PBRAppearance {
-      }
-      geometry Box {
-        size 0.9 0.05 0.6
-      }
+    geometry Box {
+      size 2.5 0.05 0.6
     }
-  ]
-  name "solid(4)"
-  boundingObject Box {
-    size 0.9 0.05 0.6
   }
 }
 Solid {
-  translation -0.941358 1.91592 -1.70087e-13
-  rotation 0 0 1 -1.5707953071795862
+  translation 0.750387 0.79649 0.32
+  rotation 0 0 1 -1.570795613280012
   children [
     Shape {
       appearance PBRAppearance {
       }
       geometry Box {
-        size 0.9 0.05 0.6
-      }
-    }
-  ]
-  name "solid(6)"
-  boundingObject Box {
-    size 0.9 0.05 0.6
-  }
-}
-Solid {
-  translation -1.70524 2.26021 0.09
-  rotation 0 0 -1 4.692820414042842e-06
-  children [
-    Shape {
-      appearance PBRAppearance {
-      }
-      geometry Box {
-        size 2 0.05 0.6
+        size 2.5 0.05 0.6
       }
     }
   ]
   name "solid(2)"
-  boundingObject Box {
-    size 2 0.05 0.6
+  boundingObject Shape {
+    appearance PBRAppearance {
+    }
+    geometry Box {
+      size 2.5 0.05 0.6
+    }
   }
 }
 Solid {
-  translation -2.3761 1.27586 0.09
-  rotation 0 0 1 -1.5708053071795867
+  translation -1.48961 1.23649 1.17
+  rotation 0 0 1 -1.570795613280012
   children [
     Shape {
       appearance PBRAppearance {
       }
       geometry Box {
-        size 2 0.05 0.6
+        size 0.1 0.1 0.6
       }
     }
   ]
-  name "solid(8)"
-  boundingObject Box {
-    size 2 0.05 0.6
+  name "solid(3)"
+  boundingObject Shape {
+    appearance PBRAppearance {
+    }
+    geometry Box {
+      size 0.1 0.1 0.6
+    }
   }
 }
-Solid {
-  translation 1.42442 1.34619 0.09
-  rotation 0 0 1 -1.5708053071795867
+Billboard {
   children [
     Shape {
       appearance PBRAppearance {
-      }
-      geometry Box {
-        size 2 0.05 0.6
-      }
-    }
-  ]
-  name "solid(9)"
-  boundingObject Box {
-    size 2 0.05 0.6
-  }
-}
-Solid {
-  translation 1.40695 -0.611603 0.09
-  rotation 0 0 1 -1.5708053071795867
-  children [
-    Shape {
-      appearance PBRAppearance {
-      }
-      geometry Box {
-        size 2 0.05 0.6
+        baseColor 0 1 1
+        emissiveColor 0 1 1
       }
     }
   ]
-  name "solid(13)"
-  boundingObject Box {
-    size 2 0.05 0.6
-  }
-}
-Solid {
-  translation -2.39772 -0.707142 0.09
-  rotation 0 0 1 -1.5708053071795867
-  children [
-    Shape {
-      appearance PBRAppearance {
-      }
-      geometry Box {
-        size 2 0.05 0.6
-      }
-    }
-  ]
-  name "solid(7)"
-  boundingObject Box {
-    size 2 0.05 0.6
-  }
-}
-Solid {
-  translation -1.44039 -1.60974 0.09
-  rotation 0 0 -1 4.692820414042842e-06
-  children [
-    Shape {
-      appearance PBRAppearance {
-      }
-      geometry Box {
-        size 2 0.05 0.6
-      }
-    }
-  ]
-  name "solid(10)"
-  boundingObject Box {
-    size 2 0.05 0.6
-  }
-}
-Solid {
-  translation 0.505853 -1.55992 0.09
-  rotation 0 0 -1 4.692820414042842e-06
-  children [
-    Shape {
-      appearance PBRAppearance {
-      }
-      geometry Box {
-        size 2 0.05 0.6
-      }
-    }
-  ]
-  name "solid(11)"
-  boundingObject Box {
-    size 2 0.05 0.6
-  }
-}
-Solid {
-  translation 0.321583 2.25345 0.09
-  rotation 0 0 -1 4.692820414042842e-06
-  children [
-    Shape {
-      appearance PBRAppearance {
-      }
-      geometry Box {
-        size 2 0.05 0.6
-      }
-    }
-  ]
-  name "solid(12)"
-  boundingObject Box {
-    size 2 0.05 0.6
-  }
-}
-Solid {
-  translation 0.419486 -0.579864 0.09
-  rotation 0 0 1 3.14159
-  children [
-    Shape {
-      appearance PBRAppearance {
-      }
-      geometry Box {
-        size 2 0.05 0.6
-      }
-    }
-  ]
-  name "solid(5)"
-  boundingObject Box {
-    size 2 0.05 0.6
-  }
 }
